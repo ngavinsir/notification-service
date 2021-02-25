@@ -3,13 +3,15 @@ package customer
 // Customer stores customer's information
 type Customer struct {
 	BaseModel
-	Name     string    `json:"name"`
+	Email    string    `json:"email" gorm:"uniqueIndex"`
+	Password string    `json:"-"`
 	Callback *Callback `json:"-"`
 }
 
 // New returns new customer
-func New(name string) *Customer {
+func New(name, hashedPassword string) *Customer {
 	return &Customer{
-		Name: name,
+		Email:    name,
+		Password: hashedPassword,
 	}
 }

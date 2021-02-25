@@ -48,3 +48,18 @@ func (r *CustomerRepository) FindByID(ctx context.Context, ID uint) (*customer.C
 
 	return &customer, nil
 }
+
+// FindByEmail returns customer by id
+func (r *CustomerRepository) FindByEmail(ctx context.Context, email string) (*customer.Customer, error) {
+	var customer customer.Customer
+
+	req := r.DB.
+		Preload("Callback").
+		Where("email = ?", email).
+		First(&customer)
+	if req.Error != nil {
+		return nil, fmt.Errorf("can't find customer with email: %s", email)
+	}
+
+	return &customer, nil
+}
