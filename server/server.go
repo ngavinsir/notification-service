@@ -130,7 +130,6 @@ func (s *Server) LoginHandler() http.HandlerFunc {
 // SetCallbackURLHandler handles request for setting customer's callback url
 func (s *Server) SetCallbackURLHandler() http.HandlerFunc {
 	type SetCallbackURLRequest struct {
-		CustomerID  uint   `json:"customer_id"`
 		CallbackURL string `json:"callback_url"`
 	}
 
@@ -141,7 +140,8 @@ func (s *Server) SetCallbackURLHandler() http.HandlerFunc {
 			return
 		}
 
-		selectedCustomer, err := s.customerRepository.FindByID(r.Context(), req.CustomerID)
+		sess := jeff.ActiveSession(r.Context())
+		selectedCustomer, err := s.customerRepository.FindByEmail(r.Context(), string(sess.Key))
 		if err != nil {
 			render.Render(w, r, ErrInternalServer(err))
 			return
