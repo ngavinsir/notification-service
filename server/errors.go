@@ -12,7 +12,6 @@ type ErrResponse struct {
 	HTTPStatusCode int   `json:"-"`
 
 	StatusText string `json:"status"`
-	AppCode    int64  `json:"code,omitempty"`
 	ErrorText  string `json:"error,omitempty"`
 }
 

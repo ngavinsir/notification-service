@@ -24,7 +24,11 @@ type CustomerRepository struct {
 
 // Save will update the customer stored in postgresql
 func (r *CustomerRepository) Save(ctx context.Context, customer *customer.Customer) error {
-	if err := r.DB.Save(customer).Find(&customer).Error; err != nil {
+	err := r.DB.Session(&gorm.Session{FullSaveAssociations: true}).
+		Save(customer).
+		Find(&customer).
+		Error
+	if err != nil {
 		return fmt.Errorf("database error")
 	}
 	return nil
@@ -39,7 +43,7 @@ func (r *CustomerRepository) FindByID(ctx context.Context, ID uint) (*customer.C
 		Where("id = ?", ID).
 		First(&customer)
 	if req.Error != nil {
-		return nil, req.Error
+		return nil, fmt.Errorf("can't find customer with id: %d", ID)
 	}
 
 	return &customer, nil

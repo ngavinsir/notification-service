@@ -1,8 +1,10 @@
 package server
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
+	"time"
 
 	"github.com/go-chi/chi"
 	"github.com/go-chi/render"
@@ -30,6 +32,7 @@ func (s *Server) Router() *chi.Mux {
 
 	r.Post("/customer", s.CreateCustomerHandler())
 	r.Post("/callback_url", s.SetCallbackURLHandler())
+	r.Post("/alfamart_payment_callback", s.AlfamartPaymentCallbackHandler())
 
 	return r
 }
@@ -54,7 +57,7 @@ func (s *Server) CreateCustomerHandler() http.HandlerFunc {
 			render.Render(w, r, ErrInternalServer(err))
 			return
 		}
-		
+
 		render.JSON(w, r, newCustomer)
 	}
 }
@@ -63,7 +66,7 @@ func (s *Server) CreateCustomerHandler() http.HandlerFunc {
 func (s *Server) SetCallbackURLHandler() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		type SetCallbackURLRequest struct {
-			CustomerID uint `json:"customer_id"`
+			CustomerID  uint   `json:"customer_id"`
 			CallbackURL string `json:"callback_url"`
 		}
 
@@ -84,7 +87,35 @@ func (s *Server) SetCallbackURLHandler() http.HandlerFunc {
 			render.Render(w, r, ErrInternalServer(err))
 			return
 		}
-		
+
+		render.JSON(w, r, req)
+	}
+}
+
+// AlfamartPaymentCallbackHandler handles payment callback from alfamart service
+func (s *Server) AlfamartPaymentCallbackHandler() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		type AlfamartPaymentCallbackRequest struct {
+			PaymentID   string    `json:"payment_id"`
+			PaymentCode string    `json:"payment_code"`
+			PaidAt      time.Time `json:"paid_at"`
+			ExternalID  string    `json:"external_id"`
+			CustomerID  uint      `json:"customer_id"`
+		}
+
+		var req AlfamartPaymentCallbackRequest
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			render.Render(w, r, ErrBadRequest(err))
+			return
+		}
+
+		involvedCustomer, err := s.customerRepository.FindByID(r.Context(), req.CustomerID)
+		if err != nil {
+			render.Render(w, r, ErrInternalServer(err))
+			return
+		}
+
+		go GetNotifier().Notify(context.Background(), involvedCustomer, req)
 		render.JSON(w, r, req)
 	}
 }
