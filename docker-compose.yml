@@ -6,11 +6,15 @@ services:
       - POSTGRES_PASSWORD=postgres
       - POSTGRES_USER=postgres
       - POSTGRES_DB=notification_service
+    logging:
+      driver: none
 
   redis:
     image: "redis:alpine"
     environment:
       - REDIS_REPLICATION_MODE=master
+    logging:
+      driver: none
 
   app:
     build: .
