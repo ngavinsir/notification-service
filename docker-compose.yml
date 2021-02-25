@@ -7,13 +7,22 @@ services:
       - POSTGRES_USER=postgres
       - POSTGRES_DB=notification_service
 
+  redis:
+    image: "redis:alpine"
+    environment:
+      - REDIS_REPLICATION_MODE=master
+
   app:
     build: .
     depends_on:
       - db
+      - redis
     environment:
       - DB_USER=postgres
       - DB_PASSWORD=postgres
       - DB_NAME=notification_service
       - DB_HOST=db
       - DB_PORT=5432
+      - REDIS_URL=redis:6379
+    ports:
+      - "4040:4040"

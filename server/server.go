@@ -5,12 +5,14 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"os"
 	"time"
 
 	"github.com/abraithwaite/jeff"
-	"github.com/abraithwaite/jeff/memory"
+	redis_store "github.com/abraithwaite/jeff/redis"
 	"github.com/go-chi/chi"
 	"github.com/go-chi/render"
+	"github.com/gomodule/redigo/redis"
 	"github.com/ngavinsir/notification-service/customer"
 	"github.com/ngavinsir/notification-service/datastore"
 	dssql "github.com/ngavinsir/notification-service/datastore/sql"
@@ -26,10 +28,17 @@ type Server struct {
 
 // NewServer returns new server
 func NewServer(db *gorm.DB) *Server {
+	redisPool := &redis.Pool{
+		MaxIdle:     3,
+		IdleTimeout: 240 * time.Second,
+		Dial:        func() (redis.Conn, error) { return redis.Dial("tcp", os.Getenv("REDIS_URL")) },
+	}
+	sessionStore := redis_store.New(redisPool)
+
 	return &Server{
 		customerRepository: dssql.NewCustomerRepository(db),
 		jeff: jeff.New(
-			memory.New(),
+			sessionStore,
 			jeff.Redirect(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				render.Render(w, r, ErrUnauthorized(fmt.Errorf("invalid session")))
 			})),
