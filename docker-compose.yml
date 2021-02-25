@@ -1,0 +1,19 @@
+version: "2.1"
+services:
+  db:
+    image: postgres:12.2
+    environment:
+      - POSTGRES_PASSWORD=postgres
+      - POSTGRES_USER=postgres
+      - POSTGRES_DB=notification_service
+
+  app:
+    build: .
+    depends_on:
+      - db
+    environment:
+      - DB_USER=postgres
+      - DB_PASSWORD=postgres
+      - DB_NAME=notification_service
+      - DB_HOST=db
+      - DB_PORT=5432
