@@ -29,3 +29,18 @@ func (r *CustomerRepository) Save(ctx context.Context, customer *customer.Custom
 	}
 	return nil
 }
+
+// FindByID returns customer by id
+func (r *CustomerRepository) FindByID(ctx context.Context, ID uint) (*customer.Customer, error) {
+	var customer customer.Customer
+
+	req := r.DB.
+		Preload("Callback").
+		Where("id = ?", ID).
+		First(&customer)
+	if req.Error != nil {
+		return nil, req.Error
+	}
+
+	return &customer, nil
+}

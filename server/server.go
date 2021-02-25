@@ -29,6 +29,7 @@ func (s *Server) Router() *chi.Mux {
 	r := chi.NewRouter()
 
 	r.Post("/customer", s.CreateCustomerHandler())
+	r.Post("/callback_url", s.SetCallbackURLHandler())
 
 	return r
 }
@@ -55,5 +56,35 @@ func (s *Server) CreateCustomerHandler() http.HandlerFunc {
 		}
 		
 		render.JSON(w, r, newCustomer)
+	}
+}
+
+// SetCallbackURLHandler handles request for setting customer's callback url
+func (s *Server) SetCallbackURLHandler() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		type SetCallbackURLRequest struct {
+			CustomerID uint `json:"customer_id"`
+			CallbackURL string `json:"callback_url"`
+		}
+
+		var req SetCallbackURLRequest
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			render.Render(w, r, ErrBadRequest(err))
+			return
+		}
+
+		selectedCustomer, err := s.customerRepository.FindByID(r.Context(), req.CustomerID)
+		if err != nil {
+			render.Render(w, r, ErrInternalServer(err))
+			return
+		}
+
+		selectedCustomer.Callback.CallbackURL = req.CallbackURL
+		if err := s.customerRepository.Save(r.Context(), selectedCustomer); err != nil {
+			render.Render(w, r, ErrInternalServer(err))
+			return
+		}
+		
+		render.JSON(w, r, req)
 	}
 }
