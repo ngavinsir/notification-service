@@ -45,12 +45,15 @@ func (s *Server) CreateCustomerHandler() http.HandlerFunc {
 			render.Render(w, r, ErrBadRequest(err))
 			return
 		}
-		customer := customer.New(req.Name)
-		if err := s.customerRepository.Save(r.Context(), customer); err != nil {
+
+		newCustomer := customer.New(req.Name)
+		callback := customer.NewCallback("", uint(newCustomer.ID))
+		newCustomer.Callback = callback
+		if err := s.customerRepository.Save(r.Context(), newCustomer); err != nil {
 			render.Render(w, r, ErrInternalServer(err))
 			return
 		}
 		
-		render.JSON(w, r, customer)
+		render.JSON(w, r, newCustomer)
 	}
 }

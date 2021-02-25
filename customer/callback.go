@@ -3,7 +3,7 @@ package customer
 // Callback stores customer's notification callback settings
 type Callback struct {
 	BaseModel
-	CustomerID  uint   `gorm:"index"`
+	CustomerID  uint   `json:"-" gorm:"index"`
 	CallbackURL string `json:"callback_url"`
 }
 

@@ -4,7 +4,7 @@ package customer
 type Customer struct {
 	BaseModel
 	Name     string   `json:"name"`
-	Callback *Callback `json:"callback,omitempty"`
+	Callback *Callback `json:"-"`
 }
 
 // New returns new customer
