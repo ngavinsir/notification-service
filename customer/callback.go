@@ -1,10 +1,8 @@
 package customer
 
-import "gorm.io/gorm"
-
 // Callback stores customer's notification callback settings
 type Callback struct {
-	gorm.Model
+	BaseModel
 	CustomerID  uint   `gorm:"index"`
 	CallbackURL string `json:"callback_url"`
 }

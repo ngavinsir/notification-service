@@ -1,14 +1,15 @@
 package customer
 
-import "gorm.io/gorm"
-
 // Customer stores customer's information
 type Customer struct {
-	gorm.Model
-	Callback Callback
+	BaseModel
+	Name     string   `json:"name"`
+	Callback *Callback `json:"callback,omitempty"`
 }
 
 // New returns new customer
-func New() *Customer {
-	return &Customer{}
+func New(name string) *Customer {
+	return &Customer{
+		Name: name,
+	}
 }
