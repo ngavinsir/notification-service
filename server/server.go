@@ -16,7 +16,7 @@ import (
 	"github.com/ngavinsir/notification-service/customer"
 	"github.com/ngavinsir/notification-service/datastore"
 	dssql "github.com/ngavinsir/notification-service/datastore/sql"
-	"golang.org/x/crypto/bcrypt"
+	"github.com/ngavinsir/notification-service/util/password"
 	"gorm.io/gorm"
 )
 
@@ -60,16 +60,6 @@ func (s *Server) Router() *chi.Mux {
 	return r
 }
 
-func hashPassword(password string) (string, error) {
-	bytes, err := bcrypt.GenerateFromPassword([]byte(password), 12)
-	return string(bytes), err
-}
-
-func checkPasswordHash(password, hash string) bool {
-	err := bcrypt.CompareHashAndPassword([]byte(hash), []byte(password))
-	return err == nil
-}
-
 // RegisterHandler handles request for creating a customer
 func (s *Server) RegisterHandler() http.HandlerFunc {
 	type RegisterRequest struct {
@@ -84,7 +74,7 @@ func (s *Server) RegisterHandler() http.HandlerFunc {
 			return
 		}
 
-		hashedPassword, err := hashPassword(req.Password)
+		hashedPassword, err := password.HashPassword(req.Password)
 		if err != nil {
 			render.Render(w, r, ErrInternalServer(err))
 			return
@@ -122,7 +112,7 @@ func (s *Server) LoginHandler() http.HandlerFunc {
 			return
 		}
 
-		if !checkPasswordHash(req.Password, customerByEmail.Password) {
+		if !password.CheckPasswordHash(req.Password, customerByEmail.Password) {
 			render.Render(w, r, ErrUnauthorized(fmt.Errorf("email/password is wrong")))
 			return
 		}
