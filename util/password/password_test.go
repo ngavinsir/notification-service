@@ -13,7 +13,7 @@ func TestHashPassword_IsMatch(t *testing.T) {
 		"ZKJsiasnzx9891:}{>?:",
 	}
 
-	for _, password := range(tests) {
+	for _, password := range tests {
 		t.Run("Match password hash", func(t *testing.T) {
 			hashedPassword, err := HashPassword(password)
 			if err != nil {

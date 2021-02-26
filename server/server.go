@@ -23,8 +23,8 @@ import (
 
 // Server holds server's required resources
 type Server struct {
-	customerRepository datastore.CustomerRepository
-	jeff               *jeff.Jeff
+	CustomerRepository datastore.CustomerRepository
+	Jeff               *jeff.Jeff
 }
 
 // NewServer returns new server
@@ -37,8 +37,8 @@ func NewServer(db *gorm.DB) *Server {
 	sessionStore := redis_store.New(redisPool)
 
 	return &Server{
-		customerRepository: dssql.NewCustomerRepository(db),
-		jeff: jeff.New(
+		CustomerRepository: dssql.NewCustomerRepository(db),
+		Jeff: jeff.New(
 			sessionStore,
 			jeff.Redirect(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				render.Render(w, r, ErrUnauthorized(fmt.Errorf("invalid session")))
@@ -58,18 +58,13 @@ func (s *Server) Router() *chi.Mux {
 	r.Post("/login", s.LoginHandler())
 	r.Post("/alfamart_payment_callback", s.AlfamartPaymentCallbackHandler())
 
-	r.Post("/callback_url", s.jeff.WrapFunc(s.SetCallbackURLHandler()))
+	r.Post("/callback_url", s.Jeff.WrapFunc(s.SetCallbackURLHandler()))
 
 	return r
 }
 
 // RegisterHandler handles request for creating a customer
 func (s *Server) RegisterHandler() http.HandlerFunc {
-	type RegisterRequest struct {
-		Email    string `json:"email"`
-		Password string `json:"password"`
-	}
-
 	return func(w http.ResponseWriter, r *http.Request) {
 		var req RegisterRequest
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -86,7 +81,7 @@ func (s *Server) RegisterHandler() http.HandlerFunc {
 		newCustomer := customer.New(req.Email, hashedPassword)
 		callback := customer.NewCallback("", uint(newCustomer.ID))
 		newCustomer.Callback = callback
-		if err := s.customerRepository.Save(r.Context(), newCustomer); err != nil {
+		if err := s.CustomerRepository.Save(r.Context(), newCustomer); err != nil {
 			render.Render(w, r, ErrInternalServer(err))
 			return
 		}
@@ -109,7 +104,7 @@ func (s *Server) LoginHandler() http.HandlerFunc {
 			return
 		}
 
-		customerByEmail, err := s.customerRepository.FindByEmail(context.Background(), req.Email)
+		customerByEmail, err := s.CustomerRepository.FindByEmail(context.Background(), req.Email)
 		if err != nil {
 			render.Render(w, r, ErrUnauthorized(fmt.Errorf("email/password is wrong")))
 			return
@@ -120,7 +115,7 @@ func (s *Server) LoginHandler() http.HandlerFunc {
 			return
 		}
 
-		if err = s.jeff.Set(r.Context(), w, []byte(req.Email)); err != nil {
+		if err = s.Jeff.Set(r.Context(), w, []byte(req.Email)); err != nil {
 			render.Render(w, r, ErrInternalServer(err))
 			return
 		}
@@ -143,14 +138,14 @@ func (s *Server) SetCallbackURLHandler() http.HandlerFunc {
 		}
 
 		sess := jeff.ActiveSession(r.Context())
-		selectedCustomer, err := s.customerRepository.FindByEmail(r.Context(), string(sess.Key))
+		selectedCustomer, err := s.CustomerRepository.FindByEmail(r.Context(), string(sess.Key))
 		if err != nil {
 			render.Render(w, r, ErrInternalServer(err))
 			return
 		}
 
 		selectedCustomer.Callback.CallbackURL = req.CallbackURL
-		if err := s.customerRepository.Save(r.Context(), selectedCustomer); err != nil {
+		if err := s.CustomerRepository.Save(r.Context(), selectedCustomer); err != nil {
 			render.Render(w, r, ErrInternalServer(err))
 			return
 		}
@@ -166,7 +161,7 @@ func (s *Server) AlfamartPaymentCallbackHandler() http.HandlerFunc {
 		PaymentCode string    `json:"payment_code"`
 		PaidAt      time.Time `json:"paid_at"`
 		ExternalID  string    `json:"external_id"`
-		CustomerID  uint      `json:"customer_id"`
+		CustomerID  uint64    `json:"customer_id"`
 	}
 
 	return func(w http.ResponseWriter, r *http.Request) {
@@ -176,7 +171,7 @@ func (s *Server) AlfamartPaymentCallbackHandler() http.HandlerFunc {
 			return
 		}
 
-		involvedCustomer, err := s.customerRepository.FindByID(r.Context(), req.CustomerID)
+		involvedCustomer, err := s.CustomerRepository.FindByID(r.Context(), req.CustomerID)
 		if err != nil {
 			render.Render(w, r, ErrInternalServer(err))
 			return
@@ -185,4 +180,10 @@ func (s *Server) AlfamartPaymentCallbackHandler() http.HandlerFunc {
 		go GetNotifier().Notify(context.Background(), involvedCustomer, req)
 		render.JSON(w, r, req)
 	}
+}
+
+// RegisterRequest is a struct for register endpoint's request body
+type RegisterRequest struct {
+	Email    string `json:"email"`
+	Password string `json:"password"`
 }

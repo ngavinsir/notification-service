@@ -35,7 +35,7 @@ func (r *CustomerRepository) Save(ctx context.Context, customer *customer.Custom
 }
 
 // FindByID returns customer by id
-func (r *CustomerRepository) FindByID(ctx context.Context, ID uint) (*customer.Customer, error) {
+func (r *CustomerRepository) FindByID(ctx context.Context, ID uint64) (*customer.Customer, error) {
 	var customer customer.Customer
 
 	req := r.DB.
