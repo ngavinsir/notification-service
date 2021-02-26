@@ -65,7 +65,7 @@ func TestServer_Register(t *testing.T) {
 
 	handler := server.RegisterHandler()
 
-	registerRequest := &RegisterRequest{
+	registerRequest := &AuthRequest{
 		Email:    "example@example.com",
 		Password: "password",
 	}
@@ -95,6 +95,83 @@ func TestServer_Register(t *testing.T) {
 		handler.ServeHTTP(rr, req)
 		if statusCode := rr.Result().StatusCode; statusCode == http.StatusOK {
 			t.Errorf("handler should returned error status code: got %v", statusCode)
+		}
+	})
+}
+
+func TestServer_Login(t *testing.T) {
+	mockCustomerRepository := &MockCustomerRepository{
+		customerByEmail: make(map[string]*customer.Customer),
+		customerByID:    make(map[uint64]*customer.Customer),
+	}
+	jeff := jeff.New(
+		memory.New(),
+		jeff.Insecure,
+	)
+	server := &Server{
+		CustomerRepository: mockCustomerRepository,
+		Jeff:               jeff,
+	}
+
+	// Register customer
+	registerHandler := server.RegisterHandler()
+	registerRequest := &AuthRequest{
+		Email:    "example@example.com",
+		Password: "password",
+	}
+	reqBody, err := json.Marshal(registerRequest)
+	if err != nil {
+		t.Fatal(err)
+	}
+	rr := httptest.NewRecorder()
+	req, err := http.NewRequest("POST", "/register", bytes.NewBuffer(reqBody))
+	if err != nil {
+		t.Fatal(err)
+	}
+	registerHandler.ServeHTTP(rr, req)
+
+	// Login customer
+	loginHandler := server.LoginHandler()
+
+	t.Run("Valid email and password", func(t *testing.T) {
+		loginRequest := &AuthRequest{
+			Email:    "example@example.com",
+			Password: "password",
+		}
+		reqBody, err = json.Marshal(loginRequest)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		rr := httptest.NewRecorder()
+		req, err := http.NewRequest("POST", "/login", bytes.NewBuffer(reqBody))
+		if err != nil {
+			t.Fatal(err)
+		}
+		loginHandler.ServeHTTP(rr, req)
+		if statusCode := rr.Result().StatusCode; statusCode != http.StatusOK {
+			t.Errorf("handler returned wrong status code: got %v want %v", statusCode, http.StatusOK)
+		}
+	})
+
+	t.Run("Wrong email or password", func(t *testing.T) {
+		loginRequest := &AuthRequest{
+			Email:    "example@example.com",
+			Password: "wrong_password",
+		}
+		reqBody, err = json.Marshal(loginRequest)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		rr := httptest.NewRecorder()
+		req, err := http.NewRequest("POST", "/login", bytes.NewBuffer(reqBody))
+		if err != nil {
+			t.Fatal(err)
+		}
+		loginHandler.ServeHTTP(rr, req)
+		if statusCode := rr.Result().StatusCode; statusCode == http.StatusOK {
+			t.Errorf("handler should returned error status code: got %v, want %v", statusCode, http.StatusUnauthorized)
 		}
 	})
 }

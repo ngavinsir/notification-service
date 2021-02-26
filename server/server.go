@@ -66,7 +66,7 @@ func (s *Server) Router() *chi.Mux {
 // RegisterHandler handles request for creating a customer
 func (s *Server) RegisterHandler() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		var req RegisterRequest
+		var req AuthRequest
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 			render.Render(w, r, ErrBadRequest(err))
 			return
@@ -92,13 +92,8 @@ func (s *Server) RegisterHandler() http.HandlerFunc {
 
 // LoginHandler handles request for login authentication
 func (s *Server) LoginHandler() http.HandlerFunc {
-	type LoginRequest struct {
-		Email    string `json:"email"`
-		Password string `json:"password"`
-	}
-
 	return func(w http.ResponseWriter, r *http.Request) {
-		var req LoginRequest
+		var req AuthRequest
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 			render.Render(w, r, ErrBadRequest(err))
 			return
@@ -182,8 +177,8 @@ func (s *Server) AlfamartPaymentCallbackHandler() http.HandlerFunc {
 	}
 }
 
-// RegisterRequest is a struct for register endpoint's request body
-type RegisterRequest struct {
+// AuthRequest is a struct for register and login endpoint's request body
+type AuthRequest struct {
 	Email    string `json:"email"`
 	Password string `json:"password"`
 }
