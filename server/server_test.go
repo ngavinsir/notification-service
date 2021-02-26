@@ -167,7 +167,7 @@ func TestServer_AlfamartPaymentCallback(t *testing.T) {
 	server := setupMockServer()
 
 	paidAt, _ := time.Parse(time.RFC3339, "2020-10-17T07:41:33.866Z")
-	request := &AlfamartPaymentCallbackRequest{
+	alfamartRequest := &AlfamartPaymentCallbackRequest{
 		PaymentID:   "123123123",
 		PaymentCode: "XYZ123",
 		PaidAt:      paidAt,
@@ -182,7 +182,7 @@ func TestServer_AlfamartPaymentCallback(t *testing.T) {
 		}
 
 		t.Run("Notification payload is matching", func(t *testing.T) {
-			if got, want := req, *request; got != want {
+			if got, want := req, *alfamartRequest; got != want {
 				t.Errorf("Want notification payload %v, got %v", want, got)
 			}
 		})
@@ -210,18 +210,12 @@ func TestServer_AlfamartPaymentCallback(t *testing.T) {
 	}
 
 	handler := server.AlfamartPaymentCallbackHandler()
-	reqBody, err := json.Marshal(request)
-	if err != nil {
-		t.Fatal(err)
-	}
-	rr := httptest.NewRecorder()
-	req, err := http.NewRequest("POST", "/alfamart_payment_callback", bytes.NewBuffer(reqBody))
-	if err != nil {
-		t.Fatal(err)
-	}
 
 	wg.Add(1)
-	handler.ServeHTTP(rr, req)
+	_, err = sendRequest(handler, "POST", "/alfamart_payment_callback", alfamartRequest, []*http.Cookie{})
+	if err != nil {
+		t.Fatal(err)
+	}
 	wg.Wait()
 }
 
@@ -276,18 +270,7 @@ func register(handler http.HandlerFunc, email, password string) (*http.Response,
 		Email:    email,
 		Password: password,
 	}
-	reqBody, err := json.Marshal(registerRequest)
-	if err != nil {
-		return nil, err
-	}
-	rr := httptest.NewRecorder()
-	req, err := http.NewRequest("POST", "/register", bytes.NewBuffer(reqBody))
-	if err != nil {
-		return nil, err
-	}
-	handler.ServeHTTP(rr, req)
-
-	return rr.Result(), nil
+	return sendRequest(handler, "POST", "/register", registerRequest, []*http.Cookie{})
 }
 
 func login(handler http.HandlerFunc, email, password string) (*http.Response, error) {
@@ -295,32 +278,30 @@ func login(handler http.HandlerFunc, email, password string) (*http.Response, er
 		Email:    email,
 		Password: password,
 	}
-	reqBody, err := json.Marshal(loginRequest)
-	if err != nil {
-		return nil, err
-	}
-
-	rr := httptest.NewRecorder()
-	req, err := http.NewRequest("POST", "/login", bytes.NewBuffer(reqBody))
-	if err != nil {
-		return nil, err
-	}
-	handler.ServeHTTP(rr, req)
-
-	return rr.Result(), nil
+	return sendRequest(handler, "POST", "/login", loginRequest, []*http.Cookie{})
 }
 
 func setCallbackURL(handler http.HandlerFunc, callbackURL string, cookies []*http.Cookie) (*http.Response, error) {
 	request := &SetCallbackURLRequest{
 		CallbackURL: callbackURL,
 	}
-	reqBody, err := json.Marshal(request)
+	return sendRequest(handler, "POST", "/callback_url", request, cookies)
+}
+
+func sendRequest(
+	handler http.HandlerFunc,
+	method string,
+	url string,
+	payload interface{},
+	cookies []*http.Cookie,
+) (*http.Response, error) {
+	reqBody, err := json.Marshal(payload)
 	if err != nil {
 		return nil, err
 	}
 
 	rr := httptest.NewRecorder()
-	req, err := http.NewRequest("POST", "/callback_url", bytes.NewBuffer(reqBody))
+	req, err := http.NewRequest(method, url, bytes.NewBuffer(reqBody))
 	if err != nil {
 		return nil, err
 	}
