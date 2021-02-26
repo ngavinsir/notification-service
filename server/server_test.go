@@ -166,16 +166,27 @@ func TestServer_SetCallbackURL(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	rr := httptest.NewRecorder()
-	req, err := http.NewRequest("POST", "/callback_url", bytes.NewBuffer(reqBody))
-	if err != nil {
-		t.Fatal(err)
-	}
-	for i := range loginResponse.Cookies() {
-		req.AddCookie(loginResponse.Cookies()[i])
-	}
+	t.Run("Response Error Unauthorized", func(t *testing.T) {
+		rr := httptest.NewRecorder()
+		req, err := http.NewRequest("POST", "/callback_url", bytes.NewBuffer(reqBody))
+		if err != nil {
+			t.Fatal(err)
+		}
+		server.Jeff.WrapFunc(handler).ServeHTTP(rr, req)
+		if statusCode := rr.Result().StatusCode; statusCode == http.StatusOK {
+			t.Errorf("handler returned status code OK")
+		}
+	})
 
 	t.Run("Response OK", func(t *testing.T) {
+		rr := httptest.NewRecorder()
+		req, err := http.NewRequest("POST", "/callback_url", bytes.NewBuffer(reqBody))
+		if err != nil {
+			t.Fatal(err)
+		}
+		for i := range loginResponse.Cookies() {
+			req.AddCookie(loginResponse.Cookies()[i])
+		}
 		server.Jeff.WrapFunc(handler).ServeHTTP(rr, req)
 		if statusCode := rr.Result().StatusCode; statusCode != http.StatusOK {
 			t.Errorf("handler returned wrong status code: got %v want %v", statusCode, http.StatusOK)
