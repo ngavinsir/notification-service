@@ -121,10 +121,6 @@ func (s *Server) LoginHandler() http.HandlerFunc {
 
 // SetCallbackURLHandler handles request for setting customer's callback url
 func (s *Server) SetCallbackURLHandler() http.HandlerFunc {
-	type SetCallbackURLRequest struct {
-		CallbackURL string `json:"callback_url"`
-	}
-
 	return func(w http.ResponseWriter, r *http.Request) {
 		var req SetCallbackURLRequest
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -181,4 +177,9 @@ func (s *Server) AlfamartPaymentCallbackHandler() http.HandlerFunc {
 type AuthRequest struct {
 	Email    string `json:"email"`
 	Password string `json:"password"`
+}
+
+// SetCallbackURLRequest is a struct for set callback url endpoint's request body
+type SetCallbackURLRequest struct {
+	CallbackURL string `json:"callback_url"`
 }
