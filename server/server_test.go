@@ -57,35 +57,23 @@ func TestServer_Register(t *testing.T) {
 	server := setupMockServer()
 	handler := server.RegisterHandler()
 
-	registerRequest := &AuthRequest{
-		Email:    "example@example.com",
-		Password: "password",
-	}
-	reqBody, err := json.Marshal(registerRequest)
-	if err != nil {
-		t.Fatal(err)
-	}
+	email := "example@example.com"
+	password := "password"
 
 	t.Run("Valid email", func(t *testing.T) {
-		rr := httptest.NewRecorder()
-		req, err := http.NewRequest("POST", "/register", bytes.NewBuffer(reqBody))
+		err := mustRegister(handler, email, password)
 		if err != nil {
 			t.Fatal(err)
-		}
-		handler.ServeHTTP(rr, req)
-		if statusCode := rr.Result().StatusCode; statusCode != http.StatusOK {
-			t.Errorf("handler returned wrong status code: got %v want %v", statusCode, http.StatusOK)
 		}
 	})
 
 	t.Run("Duplicate email", func(t *testing.T) {
-		rr := httptest.NewRecorder()
-		req, err := http.NewRequest("POST", "/register", bytes.NewBuffer(reqBody))
+		registerResponse, err := register(handler, email, password)
 		if err != nil {
 			t.Fatal(err)
 		}
-		handler.ServeHTTP(rr, req)
-		if statusCode := rr.Result().StatusCode; statusCode == http.StatusOK {
+
+		if statusCode := registerResponse.StatusCode; statusCode == http.StatusOK {
 			t.Errorf("handler should returned error status code: got %v", statusCode)
 		}
 	})
@@ -95,50 +83,26 @@ func TestServer_Login(t *testing.T) {
 	server := setupMockServer()
 
 	// Register customer
-	if err := register(server.RegisterHandler(), "example@example.com", "password"); err != nil {
+	if err := mustRegister(server.RegisterHandler(), "example@example.com", "password"); err != nil {
 		t.Fatal(err)
 	}
 
 	loginHandler := server.LoginHandler()
 
 	t.Run("Valid email and password", func(t *testing.T) {
-		loginRequest := &AuthRequest{
-			Email:    "example@example.com",
-			Password: "password",
-		}
-		reqBody, err := json.Marshal(loginRequest)
+		_, err := mustLogin(loginHandler, "example@example.com", "password")
 		if err != nil {
 			t.Fatal(err)
-		}
-
-		rr := httptest.NewRecorder()
-		req, err := http.NewRequest("POST", "/login", bytes.NewBuffer(reqBody))
-		if err != nil {
-			t.Fatal(err)
-		}
-		loginHandler.ServeHTTP(rr, req)
-		if statusCode := rr.Result().StatusCode; statusCode != http.StatusOK {
-			t.Errorf("handler returned wrong status code: got %v want %v", statusCode, http.StatusOK)
 		}
 	})
 
 	t.Run("Wrong email or password", func(t *testing.T) {
-		loginRequest := &AuthRequest{
-			Email:    "example@example.com",
-			Password: "wrong_password",
-		}
-		reqBody, err := json.Marshal(loginRequest)
+		loginResponse, err := login(loginHandler, "example@example.com", "wrong_password")
 		if err != nil {
 			t.Fatal(err)
 		}
 
-		rr := httptest.NewRecorder()
-		req, err := http.NewRequest("POST", "/login", bytes.NewBuffer(reqBody))
-		if err != nil {
-			t.Fatal(err)
-		}
-		loginHandler.ServeHTTP(rr, req)
-		if statusCode := rr.Result().StatusCode; statusCode == http.StatusOK {
+		if statusCode := loginResponse.StatusCode; statusCode == http.StatusOK {
 			t.Errorf("handler should returned error status code: got %v, want %v", statusCode, http.StatusUnauthorized)
 		}
 	})
@@ -148,50 +112,41 @@ func TestServer_SetCallbackURL(t *testing.T) {
 	server := setupMockServer()
 
 	// Register customer
-	if err := register(server.RegisterHandler(), "example@example.com", "password"); err != nil {
+	if err := mustRegister(server.RegisterHandler(), "example@example.com", "password"); err != nil {
 		t.Fatal(err)
 	}
 
 	// Login customer
-	loginResponse, err := login(server.LoginHandler(), "example@example.com", "password")
+	loginResponse, err := mustLogin(server.LoginHandler(), "example@example.com", "password")
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	handler := server.SetCallbackURLHandler()
 
-	request := &SetCallbackURLRequest{
-		CallbackURL: "http://www.example.com",
-	}
-	reqBody, err := json.Marshal(request)
-	if err != nil {
-		t.Fatal(err)
-	}
-
 	t.Run("Response Error Unauthorized", func(t *testing.T) {
-		rr := httptest.NewRecorder()
-		req, err := http.NewRequest("POST", "/callback_url", bytes.NewBuffer(reqBody))
+		setCallbackURLResponse, err := setCallbackURL(
+			server.Jeff.WrapFunc(handler),
+			"http://www.example.com",
+			[]*http.Cookie{},
+		)
 		if err != nil {
 			t.Fatal(err)
 		}
-		server.Jeff.WrapFunc(handler).ServeHTTP(rr, req)
-		if statusCode := rr.Result().StatusCode; statusCode == http.StatusOK {
+
+		if statusCode := setCallbackURLResponse.StatusCode; statusCode == http.StatusOK {
 			t.Errorf("handler returned status code OK")
 		}
 	})
 
 	t.Run("Response OK", func(t *testing.T) {
-		rr := httptest.NewRecorder()
-		req, err := http.NewRequest("POST", "/callback_url", bytes.NewBuffer(reqBody))
+		err := mustSetCallbackURL(
+			server.Jeff.WrapFunc(handler),
+			"http://www.example.com",
+			loginResponse.Cookies(),
+		)
 		if err != nil {
 			t.Fatal(err)
-		}
-		for i := range loginResponse.Cookies() {
-			req.AddCookie(loginResponse.Cookies()[i])
-		}
-		server.Jeff.WrapFunc(handler).ServeHTTP(rr, req)
-		if statusCode := rr.Result().StatusCode; statusCode != http.StatusOK {
-			t.Errorf("handler returned wrong status code: got %v want %v", statusCode, http.StatusOK)
 		}
 	})
 
@@ -201,7 +156,7 @@ func TestServer_SetCallbackURL(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		if got, want := customer.Callback.CallbackURL, request.CallbackURL; got != want {
+		if got, want := customer.Callback.CallbackURL, "http://www.example.com"; got != want {
 			t.Errorf("Want customer callback's url %s, got %s", want, got)
 		}
 	})
@@ -238,14 +193,14 @@ func TestServer_AlfamartPaymentCallback(t *testing.T) {
 	defer mockCustomerServer.Close()
 
 	// Set callback url
-	if err := register(server.RegisterHandler(), "example@example.com", "password"); err != nil {
+	if err := mustRegister(server.RegisterHandler(), "example@example.com", "password"); err != nil {
 		t.Fatal(err)
 	}
-	loginResponse, err := login(server.LoginHandler(), "example@example.com", "password")
+	loginResponse, err := mustLogin(server.LoginHandler(), "example@example.com", "password")
 	if err != nil {
 		t.Fatal(err)
 	}
-	_, err = setCallbackUrl(
+	err = mustSetCallbackURL(
 		server.Jeff.WrapFunc(server.SetCallbackURLHandler()),
 		mockCustomerServer.URL,
 		loginResponse.Cookies(),
@@ -283,26 +238,56 @@ func setupMockServer() *Server {
 	}
 }
 
-func register(handler http.HandlerFunc, email, password string) error {
+func mustRegister(handler http.HandlerFunc, email, password string) error {
+	registerResponse, err := register(handler, email, password)
+	if err != nil {
+		return err
+	}
+	if statusCode := registerResponse.StatusCode; statusCode != http.StatusOK {
+		return fmt.Errorf("error register")
+	}
+	return nil
+}
+
+func mustLogin(handler http.HandlerFunc, email, password string) (*http.Response, error) {
+	loginResponse, err := login(handler, email, password)
+	if err != nil {
+		return nil, err
+	}
+	if statusCode := loginResponse.StatusCode; statusCode != http.StatusOK {
+		return nil, fmt.Errorf("error login")
+	}
+	return loginResponse, nil
+}
+
+func mustSetCallbackURL(handler http.HandlerFunc, callbackURL string, cookies []*http.Cookie) error {
+	response, err := setCallbackURL(handler, callbackURL, cookies)
+	if err != nil {
+		return err
+	}
+	if statusCode := response.StatusCode; statusCode != http.StatusOK {
+		return fmt.Errorf("error set callback url")
+	}
+	return nil
+}
+
+func register(handler http.HandlerFunc, email, password string) (*http.Response, error) {
 	registerRequest := &AuthRequest{
 		Email:    email,
 		Password: password,
 	}
 	reqBody, err := json.Marshal(registerRequest)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	rr := httptest.NewRecorder()
 	req, err := http.NewRequest("POST", "/register", bytes.NewBuffer(reqBody))
 	if err != nil {
-		return err
+		return nil, err
 	}
 	handler.ServeHTTP(rr, req)
-	if statusCode := rr.Result().StatusCode; statusCode != http.StatusOK {
-		return fmt.Errorf("error register")
-	}
 
-	return nil
+	return rr.Result(), nil
 }
 
 func login(handler http.HandlerFunc, email, password string) (*http.Response, error) {
@@ -321,14 +306,11 @@ func login(handler http.HandlerFunc, email, password string) (*http.Response, er
 		return nil, err
 	}
 	handler.ServeHTTP(rr, req)
-	if statusCode := rr.Result().StatusCode; statusCode != http.StatusOK {
-		return nil, fmt.Errorf("error login")
-	}
 
 	return rr.Result(), nil
 }
 
-func setCallbackUrl(handler http.HandlerFunc, callbackURL string, cookies []*http.Cookie) (*http.Response, error) {
+func setCallbackURL(handler http.HandlerFunc, callbackURL string, cookies []*http.Cookie) (*http.Response, error) {
 	request := &SetCallbackURLRequest{
 		CallbackURL: callbackURL,
 	}
