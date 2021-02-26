@@ -11,6 +11,7 @@ import (
 	"github.com/abraithwaite/jeff"
 	redis_store "github.com/abraithwaite/jeff/redis"
 	"github.com/go-chi/chi"
+	"github.com/go-chi/chi/middleware"
 	"github.com/go-chi/render"
 	"github.com/gomodule/redigo/redis"
 	"github.com/ngavinsir/notification-service/customer"
@@ -50,6 +51,8 @@ func NewServer(db *gorm.DB) *Server {
 // Router returns server routes
 func (s *Server) Router() *chi.Mux {
 	r := chi.NewRouter()
+
+	r.Use(middleware.Recoverer)
 
 	r.Post("/register", s.RegisterHandler())
 	r.Post("/login", s.LoginHandler())
