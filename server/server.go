@@ -147,14 +147,6 @@ func (s *Server) SetCallbackURLHandler() http.HandlerFunc {
 
 // AlfamartPaymentCallbackHandler handles payment callback from alfamart service
 func (s *Server) AlfamartPaymentCallbackHandler() http.HandlerFunc {
-	type AlfamartPaymentCallbackRequest struct {
-		PaymentID   string    `json:"payment_id"`
-		PaymentCode string    `json:"payment_code"`
-		PaidAt      time.Time `json:"paid_at"`
-		ExternalID  string    `json:"external_id"`
-		CustomerID  uint64    `json:"customer_id"`
-	}
-
 	return func(w http.ResponseWriter, r *http.Request) {
 		var req AlfamartPaymentCallbackRequest
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -164,7 +156,6 @@ func (s *Server) AlfamartPaymentCallbackHandler() http.HandlerFunc {
 
 		involvedCustomer, err := s.CustomerRepository.FindByID(r.Context(), req.CustomerID)
 		if err != nil {
-			render.Render(w, r, ErrInternalServer(err))
 			return
 		}
 
@@ -182,4 +173,13 @@ type AuthRequest struct {
 // SetCallbackURLRequest is a struct for set callback url endpoint's request body
 type SetCallbackURLRequest struct {
 	CallbackURL string `json:"callback_url"`
+}
+
+// AlfamartPaymentCallbackRequest is a struct that sent by alfamart service on payment callback
+type AlfamartPaymentCallbackRequest struct {
+	PaymentID   string    `json:"payment_id"`
+	PaymentCode string    `json:"payment_code"`
+	PaidAt      time.Time `json:"paid_at"`
+	ExternalID  string    `json:"external_id"`
+	CustomerID  uint64    `json:"customer_id"`
 }

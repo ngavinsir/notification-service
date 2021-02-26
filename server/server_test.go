@@ -7,7 +7,9 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"sync"
 	"testing"
+	"time"
 
 	"github.com/abraithwaite/jeff"
 	"github.com/abraithwaite/jeff/memory"
@@ -205,18 +207,79 @@ func TestServer_SetCallbackURL(t *testing.T) {
 	})
 }
 
-func setupMockServer() *Server {
-	mockCustomerRepository := &MockCustomerRepository{
-		customerByEmail: make(map[string]*customer.Customer),
-		customerByID:    make(map[uint64]*customer.Customer),
+func TestServer_AlfamartPaymentCallback(t *testing.T) {
+	var wg sync.WaitGroup
+	server := setupMockServer()
+
+	paidAt, _ := time.Parse(time.RFC3339, "2020-10-17T07:41:33.866Z")
+	request := &AlfamartPaymentCallbackRequest{
+		PaymentID:   "123123123",
+		PaymentCode: "XYZ123",
+		PaidAt:      paidAt,
+		ExternalID:  "order-123",
+		CustomerID:  1,
 	}
-	jeff := jeff.New(
-		memory.New(),
-		jeff.Insecure,
+
+	mockCustomerServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var req AlfamartPaymentCallbackRequest
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			t.Fatal(err)
+		}
+
+		t.Run("Notification payload is matching", func(t *testing.T) {
+			if got, want := req, *request; got != want {
+				t.Errorf("Want notification payload %v, got %v", want, got)
+			}
+		})
+
+		w.Write([]byte(`OK`))
+		wg.Done()
+	}))
+	defer mockCustomerServer.Close()
+
+	// Set callback url
+	if err := register(server.RegisterHandler(), "example@example.com", "password"); err != nil {
+		t.Fatal(err)
+	}
+	loginResponse, err := login(server.LoginHandler(), "example@example.com", "password")
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = setCallbackUrl(
+		server.Jeff.WrapFunc(server.SetCallbackURLHandler()),
+		mockCustomerServer.URL,
+		loginResponse.Cookies(),
 	)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	handler := server.AlfamartPaymentCallbackHandler()
+	reqBody, err := json.Marshal(request)
+	if err != nil {
+		t.Fatal(err)
+	}
+	rr := httptest.NewRecorder()
+	req, err := http.NewRequest("POST", "/alfamart_payment_callback", bytes.NewBuffer(reqBody))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	wg.Add(1)
+	handler.ServeHTTP(rr, req)
+	wg.Wait()
+}
+
+func setupMockServer() *Server {
 	return &Server{
-		CustomerRepository: mockCustomerRepository,
-		Jeff:               jeff,
+		CustomerRepository: &MockCustomerRepository{
+			customerByEmail: make(map[string]*customer.Customer),
+			customerByID:    make(map[uint64]*customer.Customer),
+		},
+		Jeff: jeff.New(
+			memory.New(),
+			jeff.Insecure,
+		),
 	}
 }
 
@@ -261,6 +324,28 @@ func login(handler http.HandlerFunc, email, password string) (*http.Response, er
 	if statusCode := rr.Result().StatusCode; statusCode != http.StatusOK {
 		return nil, fmt.Errorf("error login")
 	}
+
+	return rr.Result(), nil
+}
+
+func setCallbackUrl(handler http.HandlerFunc, callbackURL string, cookies []*http.Cookie) (*http.Response, error) {
+	request := &SetCallbackURLRequest{
+		CallbackURL: callbackURL,
+	}
+	reqBody, err := json.Marshal(request)
+	if err != nil {
+		return nil, err
+	}
+
+	rr := httptest.NewRecorder()
+	req, err := http.NewRequest("POST", "/callback_url", bytes.NewBuffer(reqBody))
+	if err != nil {
+		return nil, err
+	}
+	for i := range cookies {
+		req.AddCookie(cookies[i])
+	}
+	handler.ServeHTTP(rr, req)
 
 	return rr.Result(), nil
 }
